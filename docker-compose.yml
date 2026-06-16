@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+
+  # --- TOPIC: Service Discovery in Docker ---
+  # Docker Compose creates an internal DNS.
+  # Every service name (gateway, user-service, redis, etc.)
+  # becomes a resolvable hostname inside the Docker network.
+  # That's why gateway can reach http://user-service:3001
+  # without any hardcoded IPs.
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "3000:3000"          # Only the gateway is exposed to your host machine
+    environment:
+      - USER_SERVICE_URL=http://user-service:3001
+      - PRODUCT_SERVICE_URL=http://product-service:3002
+      - ORDER_SERVICE_URL=http://order-service:3003
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=supersecretkey123
+    depends_on:
+      - user-service
+      - product-service
+      - order-service
+      - redis
+    networks:
+      - app-network
+
+  user-service:
+    build: ./user-service
+    # No ports: block — not accessible from outside Docker.
+    # Only the gateway can reach it via the internal network.
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/userdb
+      - PORT=3001
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+  product-service:
+    build: ./product-service
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/productdb
+      - REDIS_URL=redis://redis:6379
+      - PORT=3002
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - app-network
+
+  order-service:
+    build: ./order-service
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/orderdb
+      - PORT=3003
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+  # --- TOPIC: Using Official Images ---
+  # For infrastructure services (postgres, redis, prometheus, grafana)
+  # you use pre-built official images — no Dockerfile needed.
+  # You just configure them with environment variables and volume mounts.
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - app-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      # Mount your prometheus.yml into the container at the path
+      # Prometheus expects its config file to be
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - app-network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3030:3000"          # Grafana runs on 3000 internally, mapped to 3030
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:             # Named volume — postgres data survives container restarts
+
+networks:
+  app-network:
+    driver: bridge

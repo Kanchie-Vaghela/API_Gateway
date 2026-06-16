@@ -1,0 +1,15 @@
+# --- TOPIC: Prometheus Scrape Config ---
+# Prometheus is a pull-based system. YOU don't push metrics to it.
+# Prometheus comes to your gateway every 15 seconds and calls GET /metrics.
+# This file tells Prometheus WHERE to look and HOW OFTEN.
+# "gateway:3000" works because both containers are on the same Docker network —
+# Docker resolves the service name "gateway" to the gateway container's IP.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['gateway:3000']
