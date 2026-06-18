@@ -20,7 +20,6 @@ const ORDER_SERVICE   = process.env.ORDER_SERVICE_URL   || 'http://order-service
 app.use('/users', createProxyMiddleware({
   target: USER_SERVICE,
   changeOrigin: true,
-  pathRewrite: { '^/users': '' },
   on: {
     error: (err, req, res) => {
       console.error('Proxy error (user-service):', err.message)
@@ -32,8 +31,11 @@ app.use('/users', createProxyMiddleware({
 app.use('/products', createProxyMiddleware({
   target: PRODUCT_SERVICE,
   changeOrigin: true,
-  pathRewrite: { '^/products': '' },
+  pathRewrite: (path, req) => '/products' + path,
   on: {
+    proxyReq: (proxyReq, req) => {
+      console.log(`[gateway] forwarding ${req.method} ${req.originalUrl} -> ${PRODUCT_SERVICE}${proxyReq.path}`)
+    },
     error: (err, req, res) => {
       console.error('Proxy error (product-service):', err.message)
       res.status(503).json({ error: 'product-service unavailable' })
@@ -44,7 +46,6 @@ app.use('/products', createProxyMiddleware({
 app.use('/orders', createProxyMiddleware({
   target: ORDER_SERVICE,
   changeOrigin: true,
-  pathRewrite: { '^/orders': '' },
   on: {
     error: (err, req, res) => {
       console.error('Proxy error (order-service):', err.message)

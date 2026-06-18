@@ -96,9 +96,10 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3030:3000"          # Grafana runs on 3000 internally, mapped to 3030
+      - "3030:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_PLUGINS_PREINSTALL_DISABLED=true   # stops it trying to install bundled plugins
     networks:
       - app-network
 
