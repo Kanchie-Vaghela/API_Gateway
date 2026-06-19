@@ -1,10 +1,12 @@
 const express = require('express')
 const { createProxyMiddleware, fixRequestBody } = require('http-proxy-middleware')
 const authMiddleware = require('./middleware/auth')
+const rateLimiter = require('./middleware/rateLimiter')
 
 const app = express()
 app.use(express.json())
-app.use(authMiddleware)
+app.use(authMiddleware)    // 1st: reject unauthenticated requests
+app.use(rateLimiter)       // 2nd: reject over-limit requests
 
 const USER_SERVICE    = process.env.USER_SERVICE_URL    || 'http://user-service:3001'
 const PRODUCT_SERVICE = process.env.PRODUCT_SERVICE_URL || 'http://product-service:3002'
