@@ -18,7 +18,7 @@ services:
       - PRODUCT_SERVICE_URL=http://product-service:3002
       - ORDER_SERVICE_URL=http://order-service:3003
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=supersecretkey123
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - user-service
       - product-service
@@ -29,11 +29,10 @@ services:
 
   user-service:
     build: ./user-service
-    # No ports: block — not accessible from outside Docker.
-    # Only the gateway can reach it via the internal network.
     environment:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/userdb
       - PORT=3001
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - postgres
     networks:
@@ -45,6 +44,7 @@ services:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/productdb
       - REDIS_URL=redis://redis:6379
       - PORT=3002
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - postgres
       - redis
@@ -56,6 +56,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/orderdb
       - PORT=3003
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - postgres
     networks:
@@ -70,7 +71,7 @@ services:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -98,7 +99,7 @@ services:
     ports:
       - "3030:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
       - GF_PLUGINS_PREINSTALL_DISABLED=true   # stops it trying to install bundled plugins
     networks:
       - app-network
