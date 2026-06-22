@@ -2,11 +2,14 @@ const express = require('express')
 const { createProxyMiddleware, fixRequestBody } = require('http-proxy-middleware')
 const authMiddleware = require('./middleware/auth')
 const rateLimiter = require('./middleware/rateLimiter')
+const http = require('http')
+const logger = require('./middleware/logger') 
 
 const app = express()
 app.use(express.json())
-app.use(authMiddleware)    // 1st: reject unauthenticated requests
-app.use(rateLimiter)       // 2nd: reject over-limit requests
+app.use(logger)         // 1st: log everything including rejected requests
+app.use(authMiddleware) // 2nd: auth check
+app.use(rateLimiter)    // 3rd: rate limit check
 
 const USER_SERVICE    = process.env.USER_SERVICE_URL    || 'http://user-service:3001'
 const PRODUCT_SERVICE = process.env.PRODUCT_SERVICE_URL || 'http://product-service:3002'
@@ -51,8 +54,48 @@ app.use('/orders', createProxyMiddleware({
   }
 }))
 
-app.get('/health', (req, res) => {
-  res.json({ service: 'gateway', status: 'ok' })
+// --- TOPIC: Upstream Health Probing ---
+// Instead of returning a hardcoded {status: ok}, the gateway
+// actively checks each service by hitting its /health endpoint.
+// This is the difference between liveness (process is running)
+// and readiness (dependencies are actually reachable and responding).
+// If product-service is up but postgres crashed, this will catch it
+// once you wire real DB checks into the service health endpoints.
+
+function checkService(url) {
+  return new Promise((resolve) => {
+    const req = http.get(url, (res) => {
+      resolve({ status: res.statusCode === 200 ? 'ok' : 'degraded' })
+    })
+    req.on('error', () => resolve({ status: 'down' }))
+    req.setTimeout(2000, () => {
+      req.destroy()
+      resolve({ status: 'timeout' })
+    })
+  })
+}
+
+app.get('/health', async (req, res) => {
+  const [userService, productService, orderService] = await Promise.all([
+    checkService(`${USER_SERVICE}/health`),
+    checkService(`${PRODUCT_SERVICE}/health`),
+    checkService(`${ORDER_SERVICE}/health`),
+  ])
+
+  const services = {
+    'user-service':    userService.status,
+    'product-service': productService.status,
+    'order-service':   orderService.status,
+  }
+
+  // Gateway is degraded if ANY upstream is not ok
+  const allHealthy = Object.values(services).every(s => s === 'ok')
+
+  res.status(allHealthy ? 200 : 207).json({
+    status: allHealthy ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    services
+  })
 })
 
 const PORT = process.env.PORT || 3000
