@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   '/users/register',
   '/users/login',
   '/health',
+  '/metrics',    // ← Prometheus scraper has no JWT token
 ]
 
 function isPublicPath(path) {

@@ -5,12 +5,18 @@ const rateLimiter = require('./middleware/rateLimiter')
 const http = require('http')
 const logger = require('./middleware/logger') 
 const breakers = require('./middleware/circuitBreaker')
+const { register } = require('./middleware/metrics')
 
 const app = express()
 app.use(express.json())
 app.use(logger)         // 1st: log everything including rejected requests
 app.use(authMiddleware) // 2nd: auth check
 app.use(rateLimiter)    // 3rd: rate limit check
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType)
+  res.end(await register.metrics())
+})
 
 const USER_SERVICE    = process.env.USER_SERVICE_URL    || 'http://user-service:3001'
 const PRODUCT_SERVICE = process.env.PRODUCT_SERVICE_URL || 'http://product-service:3002'
